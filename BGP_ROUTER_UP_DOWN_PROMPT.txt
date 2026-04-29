@@ -1,0 +1,250 @@
+You are a senior Ansible automation engineer working on a 
+Verizon vCAT + ETMS production automation project.
+
+I need your help testing an Ansible playbook package in a 
+lab environment (PNetLab) before delivering to production.
+
+================================================================
+COMPLETE PROJECT BACKGROUND
+================================================================
+
+PACKAGE NAME: BGP_UP_DOWN_Viptela
+
+PURPOSE:
+This is a self-healing automation package that triggers 
+automatically when a BGP Up/Down alarm is received from 
+Verizon's ETMS/VBMS ticketing system via the vCAT platform.
+It SSHes to the affected device, diagnoses the BGP issue,
+attempts remediation, and either closes the incident 
+automatically or escalates to Tier-2 with evidence.
+
+================================================================
+TARGET DEVICES
+================================================================
+Device types : cEdge (Cisco IOS-XE) and vEdge (SD-WAN OS 20.x)
+Platform detection: via "show version" output — 3-way branch:
+  ios      — Classic Cisco IOS
+  ios_xe   — Cisco IOS-XE (cEdge)
+  vedge    — Cisco SD-WAN vEdge OS 20.x
+
+================================================================
+PRODUCTION ENVIRONMENT
+================================================================
+Platform    : vCAT (Verizon Central Automation Tool)
+Ticketing   : ETMS/VBMS
+Trigger     : vCAT triggers the playbook automatically when
+              a BGP alarm is received
+Inventory   : ETMS auto-generates a JSON inventory file per 
+              execution. No ansible.cfg. No manual inventory.
+
+Key variables injected by vCAT via JSON inventory:
+  inventory_hostname    — device hostname (also NEID)
+  MgmtIP                — management IP (SSH target)
+  ansible_host          — same as MgmtIP
+  ansible_user          — injected by vCAT (never hardcoded)
+  ansible_password      — injected by vCAT (never hardcoded)
+  ansible_network_os    — e.g. "ios"
+  ansible_connection    — "network_cli"
+  ansible_port          — 22
+  ansible_command_timeout — 180
+  ansible_become        — false
+  requestId             — vCAT request ID
+  requestTimestamp      — request timestamp
+
+================================================================
+PACKAGE STRUCTURE
+================================================================
+BGP_UP_DOWN_Viptela/
+├── playbooks/
+│   ├── site.yml                ← master orchestrator
+│   ├── 02_bgp_audit.yml        ← platform detect + BGP state
+│   ├── 03_bgp_remediation.yml  ← BGP clear + recheck + alarm
+│   ├── 04_interface_lan.yml    ← LAN interface path
+│   └── 05_interface_wan.yml    ← WAN interface path
+└── filter_plugins/
+    └── bgp_filters.py          ← platform detection + parsers
+
+================================================================
+COMPLETE FLOW LOGIC
+================================================================
+
+PHASE 2 — bgp_audit.yml:
+  - SSH to MgmtIP
+  - Detect platform via show version
+  - Run BGP summary commands (platform-branched)
+  - Check VRFs if configured
+  - Parse neighbor states → Established or not
+  - Write audit output to output.log
+  - Set facts: bgp_established, bgp_down_neighbors, 
+               bgp_up_neighbors, platform_type
+
+PHASE 3 — bgp_remediation.yml:
+  IF BGP IS ESTABLISHED:
+    - Ping each up neighbor
+    - 100% reachable?
+        YES:
+          - Check vManage alarms (python module stub)
+          - Clear if present
+          - Check Azure Monitor alerts (python module stub)
+          - Clear if present
+          - Write ava-TRIAGE-BGPUpDown to output.log
+          - Incident auto-closed by ETMS
+        NO (packet loss):
+          - Collect: show log | i BGP
+          - Collect: show bgp neighbors <ip> vpn 0
+          - Write to output.log
+          - Print: "Assign Tier-2 team to check BGP packet loss"
+
+  IF BGP IS NOT ESTABLISHED:
+    - Check FSM state (Idle/Active/Connect/OpenSent/OpenConfirm)
+    - Clear BGP session (platform-branched)
+    - Wait for reconvergence
+    - Recheck BGP summary
+    - BGP now Established?
+        YES → Ping neighbor → joins reachable path above
+        NO  → Set proceed_to_interface_check: true
+              Move to Phase 4
+
+PHASE 4a — interface_lan.yml:
+  Skip if BGP already remediated
+  - Identify neighbor interface via show ip interface brief
+  - Determine LAN or WAN from interface description
+  - LAN path:
+      Interface UP?
+        YES:
+          Ping neighbor
+          Success? 
+            YES → Check BGP state/config → Tier-2 escalation
+            NO  → show ip route, show arp → Tier-2 escalation
+        NO:
+          Bounce interface (shut/no shut)
+          Interface UP after bounce?
+            YES:
+              Recheck BGP
+              Established?
+                YES → ping + vManage/Azure check + 
+                      ava-TRIAGE-BGPUpDown
+                NO  → Back to LAN ping path
+            NO → Print: "Assign Tier-2 team to check 
+                         physical connectivity"
+
+PHASE 4b — interface_wan.yml:
+  Skip if BGP already remediated or LAN resolved it
+  - WAN path:
+      Interface UP?
+        YES:
+          Circuit down?
+            YES → Print: "Refer Circuit-Down Workflow/MOP"
+            NO  → Ping neighbor
+                  Success?
+                    YES → BGP state/config check → Tier-2
+                    NO  → show ip route, show arp → Tier-2
+        NO:
+          Bounce interface (shut/no shut)
+          Interface UP after bounce?
+            YES:
+              Recheck BGP
+              Established?
+                YES → ping + vManage/Azure check + 
+                      ava-TRIAGE-BGPUpDown
+                NO  → Circuit check path
+            NO:
+              Circuit down? → Circuit-Down MOP referral
+              Circuit up?  → Tier-2 Layer 2 escalation
+
+================================================================
+INCIDENT CLOSURE MECHANISM
+================================================================
+To close incident: write at bottom of output.log:
+  ava-TRIAGE-BGPUpDown
+
+ETMS scans output.log for this keyword → auto-closes ticket.
+No API calls. No ticket module needed.
+
+For Tier-2 escalation:
+  Print: "Assign Tier-2 team to check <reason>"
+  Do NOT write ava-TRIAGE tag.
+
+================================================================
+OUTPUT.LOG FORMAT
+================================================================
+All command outputs go to output.log in Ansible working dir.
+ETMS auto-uploads it. We write no upload code.
+
+Format:
+  ==================== SUMMARY REPORT ====================
+  Hostname / IP     : {{ inventory_hostname }} / {{ MgmtIP }}
+  NEID              : {{ inventory_hostname }}
+  Request ID        : {{ requestId }}
+  Timestamp         : {{ requestTimestamp }}
+  --------------------------------------------------------
+  =++=++=++=++=++=++=++=++=++=++=++=++=++=++=
+  <command name>
+  ------------------------------------------
+  <command output>
+  =++=++=++=++=++=++=++=++=++=++=++=++=++=++=
+
+================================================================
+VMANAGE AND AZURE STUBS
+================================================================
+Python modules exist on vCAT platform.
+Called via ansible.builtin.script as stubs:
+
+  ansible.builtin.script: "{{ vmanage_module_path }} 
+                            --device {{ inventory_hostname }}"
+  ansible.builtin.script: "{{ azure_module_path }} 
+                            --device {{ inventory_hostname }}"
+
+Actual module paths filled in when env access is available.
+
+================================================================
+CODE QUALITY RULES
+================================================================
+- hosts: all (matches ETMS JSON structure)
+- gather_facts: false
+- No inline comments in YAML
+- No hardcoded values, IPs, credentials
+- No sensitive data anywhere
+- No unnecessary files in package
+- Task naming: "NNNN | PHASE | Description"
+- Platform-branched commands everywhere they differ
+
+================================================================
+LAB TESTING REQUIREMENT — YOUR TASK
+================================================================
+The package needs to be tested in a PNetLab environment 
+running a Cisco SD-WAN topology before production delivery.
+
+The lab has:
+- vEdge and cEdge devices running BGP
+- vManage controller
+- Simulated BGP neighbor relationships
+
+YOUR JOB:
+1. Review the code package (will be provided)
+2. Create a lab-compatible test inventory JSON file that 
+   mirrors the ETMS production JSON structure exactly
+3. Identify any code adjustments needed purely for lab 
+   testing (connection parameters, timeouts etc.)
+4. Provide step-by-step instructions to:
+   a. Run the playbook against a lab device
+   b. Simulate a BGP down condition
+   c. Verify the remediation flow executes correctly
+   d. Verify output.log is written correctly
+   e. Verify ava-TRIAGE-BGPUpDown appears on success
+5. Do NOT modify the core logic of any playbook
+6. Do NOT hardcode any credentials in any file
+7. All lab credentials must be passed at runtime via 
+   -e or -i flags, never stored in files
+
+================================================================
+WHAT NOT TO DO
+================================================================
+- Do not rewrite the playbooks from scratch
+- Do not add ansible.cfg
+- Do not add roles/ or group_vars/
+- Do not hardcode ansible_user or ansible_password anywhere
+- Do not change the output.log format
+- Do not change the ava-TRIAGE mechanism
+- Do not add any files not in the original package structure
+- Do not share or store any credentials in any file
