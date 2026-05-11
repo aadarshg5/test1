@@ -1,0 +1,332 @@
+---
+- name: Device-Down Recommendation Playbook
+  hosts: all
+  connection: network_cli
+  gather_facts: no
+  vars:
+    ansible_network_os: "ios"
+    # Variables passed from iAutomate
+    #assignment_group: "%ecms-msdo"
+    #Description: "DeviceUpDown - Proactive - Incident Type: DeviceUpDown Versa Device Unreachable"
+    #Manufacturer: "Cisco"
+
+  tasks:
+    - name: Print input parameters if they are not null
+      debug:
+        msg: "Input {{ item.key }}: {{ item.value }}"
+      loop:
+        - { key: 'Assignment Group', value: "{{ assignment_group }}" }
+        - { key: 'Description', value: "{{ Description }}" }
+        - { key: 'Manufacturer', value: "{{ Manufacturer }}" }
+      when: item.value is not none and item.value != ""
+
+    - name: Initialize playbook_name
+      set_fact:
+        playbook_name: ""
+
+# ----------------- Playbook Selection Starts here --------------------
+    - name: Check for Walgreens-Switch-POE-Faulty-Check
+      set_fact:
+        playbook_name: "Walgreens-Switch-POE-Faulty-Check"
+      when:
+      - playbook_name == ""
+      - assignment_group.lower() is search('\\btriage.walgreens\\b|\\bmnso.walgreens\\b')
+      - Description.lower() is search("deviceupdown|device-updown")
+      - Description.lower() is search("is less than 90 minutes")
+      - Description.lower() is search("the switch poe check automation")
+      - Manufacturer.lower() is search("aruba|cisco|dell marketing|jabil|lanner|silicom|versa")
+
+    - name: Check for Device-Down-Walgreens
+      set_fact:
+        playbook_name: "Device-Down-Walgreens"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\bwalgreens\\b')
+        - Description.lower() is search("devicedown|device down")
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type")
+
+    - name: Check for Device-Down-ECSR-CORE
+      set_fact:
+        playbook_name: "Device-Down-ECSR-CORE"
+      when:
+        - playbook_name == ""
+        # Using \\b ensures msos matches strictly and ignores msos5
+        - assignment_group.lower() is search('\\becms-msos\\b|\\becms-msos2\\b|\\becms-msos3\\b')
+        - Description.lower() is search("devicedown|device down")
+        - Description.lower() is search("proactive")
+        - Manufacturer.lower() == "cisco"
+
+    - name: Check for Device-Down-ECSR-DORTMUND
+      set_fact:
+        playbook_name: "Device-Down-ECSR-DORTMUND"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\becms-msdo\\b|\\becms-solutions\\b')
+        - Description.lower() is search("devicedown|device down")
+        - Description.lower() is search("proactive")
+        - Manufacturer.lower() == "cisco"
+
+    - name: Check for Device-Down-SAP-NOC
+      set_fact:
+        playbook_name: "Device-Down-SAP-NOC"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\bmnso_sapoffice\\b')
+        - Description.lower() is search("devicedown|device down")
+        - Description.lower() is search("proactive")
+        - Manufacturer.lower() in ["cisco", "palo alto", "palo alto networks"]
+
+    - name: Check for Device-Down-Tesco
+      set_fact:
+        playbook_name: "Device-Down-Tesco"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\becms-msos4\\b')
+        - Description.lower() is search("devicedown|device down")
+        - Description.lower() is search("proactive")
+        - Manufacturer.lower() in ["aruba", "hp", "juniper"]
+
+    - name: Check for Device-Down-UKPO
+      set_fact:
+        playbook_name: "Device-Down-UKPO"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\becms-msos5\\b')
+        - Description.lower() is search("devicedown|device down")
+        - Description.lower() is search("proactive")
+        - Manufacturer.lower() == "cisco"
+
+    - name: Check for Device-Down-Target
+      set_fact:
+        playbook_name: "Device-Down-Target"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\btarget\\b')
+        - Description.lower() is search("devicedown|device down")
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type: device down")
+        - Manufacturer.lower() in ["cisco", "cradlepoint"]
+
+    - name: Check for Device-Down-ENOC
+      set_fact:
+        playbook_name: "Device-Down-ENOC"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\benoc\\b')
+        - Description.lower() is search("devicedown|device down")
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type:")
+        - Manufacturer.lower() in ["cisco", "cradlepoint", "juniper"]
+
+    - name: Check for Device-Down-SMS-NOC
+      set_fact:
+        playbook_name: "Device-Down-SMS-NOC"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\bmnso_sms\\b|\\btriage.sms\\b')
+        - Description.lower() is search("devicedown|device down")
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type:")
+        - Manufacturer.lower() in ["cisco", "cradlepoint", "juniper"]
+
+    - name: Check for Device-Down-IENOC
+      set_fact:
+        playbook_name: "Device-Down-IENOC"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\bems-ienoc\\b')
+        - Description.lower() is search("devicedown|device down")
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type:")
+        - Manufacturer.lower() in ["cisco", "cradlepoint", "juniper"]
+
+    - name: Check for Device-Down-EMS
+      set_fact:
+        playbook_name: "Device-Down-EMS"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\bems2\\b')
+        - Description.lower() is search("devicedown|device down")
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type:")
+        - Manufacturer.lower() in ["cisco", "cradlepoint", "juniper"]
+
+    - name: Check for Device-UpDown-Walgreens
+      set_fact:
+        playbook_name: "DeviceUpDown-Walgreens"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\bwalgreens\\b')
+        - Description.lower() is search("deviceupdown|device-updown")
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type")
+        - Manufacturer.lower() is search("advantech|aruba|cisco|dell marketing|jabil|lanner|silicom|versa")
+
+    - name: Check for DeviceUpDown-Viptela-all
+      set_fact:
+        playbook_name: "DeviceUpDown-Viptela-all"
+      when:
+        - playbook_name == ""
+        - assignment_group is defined and assignment_group != ""
+        - not (assignment_group.lower() is search('\\becms-msos\\b|\\bwalgreens\\b|\\bems2\\b|\\benoc\\b|\\bienoc\\b|\\bsms\\b|\\becms-msdo\\b|\\becms-solutions\\b'))
+        - Description.lower() is search("deviceupdown|device-updown")
+        - Description.lower() is search("proactive")
+        - Manufacturer is defined and Manufacturer != ""
+
+    - name: Check for Device-UpDown-Shared-NOC
+      set_fact:
+        playbook_name: "DeviceUpDown-Shared-NOC"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\bems2\\b|\\benoc\\b|\\bienoc\\b|\\bsms\\b')
+        - Description.lower() is search("deviceupdown|device-updown")
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("versa device unreachable")
+        - Manufacturer is defined and Manufacturer != ""
+
+    - name: Check for ECSR-Dortmund-DeviceUpDown
+      set_fact:
+        playbook_name: "ECSR-Dortmund-DeviceUpDown"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\becms-msdo\\b|\\becms-solutions\\b')
+        - Description.lower() is search("deviceupdown|device-updown")
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type")
+        - Manufacturer.lower() is search("advantech|aruba|cisco|dell marketing|jabil|lanner|silicom|versa")
+    - name: Check for Deviceunstable-Tesco
+      set_fact:
+        playbook_name: "Deviceunstable-Tesco"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\becms-msos4\\b')
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type")
+        - Description.lower() is search("deviceunstable sourced from smartsassure1")
+        - Manufacturer.lower() == "juniper"
+
+    - name: Check for ICMP-Unreachable-SharedNOC
+      set_fact:
+        playbook_name: "ICMP-Unreachable-SharedNOC"
+      when:
+        - playbook_name == ""
+        #- assignment_group.lower() is search('\\bems-ienoc\\b|\\bems2\\b|\\benoc\\b|\\bsms\\b')
+        - assignment_group.lower() is search('\\bems-ienoc\\b|\\bems2\\b|\\benoc\\b|\\bsms\\b|mnso_sms|sms|enoc')
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type:")
+        - Description.lower() is search("icmp unreachable sourced from smartsassure1")
+        - Manufacturer.lower() == "cisco"
+
+    - name: Check for DeviceUnstable-SharedNOC
+      set_fact:
+        playbook_name: "DeviceUnstable-SharedNOC"
+      when:
+        - playbook_name == ""
+        #- assignment_group.lower() is search('\\bems-ienoc\\b|\\bems2\\b|\\benoc\\b|\\bsms\\b')
+        - assignment_group.lower() is search('\\bems-ienoc\\b|\\bems2\\b|\\benoc\\b|\\bsms\\b|mnso_sms|sms|enoc')
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type:")
+        - Description.lower() is search("deviceunstable")
+        - Manufacturer.lower() in ["cisco", "juniper"]
+
+    - name: Check for Device-Unstable-ECSR-CORE
+      set_fact:
+        playbook_name: "Device-Unstable-ECSR-CORE"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\becms-msos\\b|\\becms-msos2\\b|\\becms-msos3\\b')
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type")
+        - Description.lower() is search("deviceunstable sourced from smartsassure1")
+        - Manufacturer.lower() == "cisco"
+
+    - name: Check for VNS-VM-Down-SharedNoc
+      set_fact:
+        playbook_name: "VNS-VM-Down-SharedNoc"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\bems-ienoc\\b|\\bems2\\b|\\benoc\\b|\\bsms\\b|mnso_sms|sms|enoc')
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type:")
+        - Description.lower() is search("deviceupdown")
+        - Manufacturer.lower() in ["verizon", "cisco", "versa", "palo alto", "palo alto networks"]
+
+    - name: Check for BFD-TLOC-Up-Down-Viptela
+      set_fact:
+        playbook_name: "BFD-TLOC-Up-Down-Viptela"
+      when:
+        - playbook_name == ""
+        - assignment_group.lower() is search('\\bems-ienoc\\b|\\bems2\\b|\\benoc\\b|\\bsms\\b|mnso_sms|sms|enoc')
+        - Description.lower() is search("proactive")
+        - Description.lower() is search("incident type:")
+        - Description.lower() is search("bfdtlocupdown")
+        - Manufacturer.lower() in ["cisco", "viptela"]
+
+# ----------------- Execution and Error Handling --------------------
+
+    - name: Set Error Response if no match found
+      set_fact:
+        response_msg: "Given Conditions did not match any playbook, Transferring Ticket for Manual Execution"
+      when: playbook_name == ""
+
+    - name: Display Selected Playbook Name
+      debug:
+        msg: "Selected Playbook: {{ playbook_name }}"
+      when: playbook_name != ""
+
+    - block:
+        - name: Run included role
+          ansible.builtin.include_role:
+            name: "{{ playbook_name }}"
+          when: playbook_name is defined and playbook_name != "" and playbook_name != "null"
+
+        #- name: Identify Failure Scenarios
+        #  ansible.builtin.set_fact:
+            #is_failed: "{{ (response_msg.lower() is search('destination host unreachable|authentication failed|syntax error|failed|100% packet loss')) or (not (response_msg is ansible.builtin.search('(?i)Post-Test Validation: Device verified UP'))) }}"
+        #    status_codes: "-1"
+        #  when: status_codes is not defined
+
+        - name: Identify Failure Scenarios
+          ansible.builtin.set_fact:
+             # We check if the success string is NOT in the message
+            is_failed: >
+              {{
+                 ('Post-Test Validation: Device verified UP' not in response_msg) or
+                 (response_msg.lower() is search('100% packet loss|authentication failed|destination host unreachable'))
+              }}
+            status_codes: "-1"
+          when: status_codes is not defined
+
+        - name: Clean and Append Engage NOC message
+          ansible.builtin.set_fact:
+            response_msg: "{{ response_msg | regex_replace('Post-Test Validation: Device verified UP.*', '') | trim }} Engage NOC to manual troubleshooting and customer update."
+          when:
+            - is_failed | default(false)
+            - not (response_msg is search("Engage NOC to manual troubleshooting"))
+
+        - name: Finalize Success State
+          ansible.builtin.set_fact:
+            iautomate_success: "{{ response_msg }}"
+            status_codes: "1"
+          when: not (is_failed | default(false))
+
+        - name: Finalize Failure State
+          ansible.builtin.set_fact:
+            iautomate_success: "{{ response_msg }}"
+            status_codes: "2"
+          when: is_failed | default(false)
+
+      rescue:
+        - name: Set rescue failure facts
+          ansible.builtin.set_fact:
+            status_codes: "2"
+            iautomate_success: "{{ response_msg | default('Ansible execution failed.') }}"
+
+    - name: Display final iautomate_success
+      ansible.builtin.debug:
+        var: iautomate_success
+
+    - name: Display final status_codes
+      ansible.builtin.debug:
+        var: status_codes
