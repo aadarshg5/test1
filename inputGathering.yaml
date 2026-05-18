@@ -1,0 +1,517 @@
+---
+# Version: 0.2
+# Author: Balaji V R
+# Reference: Daniel Smycek
+
+# Check mandatory inputs
+# - name: '#50 CHECK MANDATORY INPUT FOR "LOGIN-CHECK" role'
+#   debug: 
+#     msg:
+#       - 'Platform: {{ Platform }}'
+#       - 'mainOutputDatAbsolutePath: {{ mainOutputDatAbsolutePath }}'
+#       - 'VCATS_DEVICE_ATTRS_BASE_URL: {{ VCATS_DEVICE_ATTRS_BASE_URL }}'
+#   delegate_to: localhost
+#   run_once: true
+  
+# Generate init JSON structures
+- name: '#60 GENERATE INIT JSON STRUCTURE'
+  set_fact:
+    loginCheckDict: {
+      "Name": "Login-check-Versa-Director",
+      "Status": "",
+      "Message": "Role didn't finish execution.",
+      "Tests": []
+    }
+    deviceDict: {
+      "Platform": "{{ Platform }}",
+      "Message": "Playbook didn't finish execution.",
+      "Status": ""
+    }
+    discoveryVDDict: {
+      "Name": "Discovery Versa Director servers",
+      "Status": "",
+      "Message": "Task didn't finish execution.",
+      "VDIPs": [],
+      "MasterVDIP": "",
+      "SlaveVDIP": ""
+    }
+    authenticationVDDict: {
+      "Name": "Authentication over API to VD servers",
+      "Status": "",
+      "Message": "Task didn't finish execution."
+    }
+    registeredOnVDDict: {
+      "Name": "Device registered on master VD server",
+      "Status": "",
+      "Message": "Task didn't finish execution."
+    }
+    availabilityDict: {
+      "Name": "Availability test (ping)",
+      "Status": "",
+      "Message": "Task didn't finish execution."
+    }
+    gatherBaseFactsDict: {
+      "Name": "Gather base facts",
+      "Status": "",
+      "Message": "Task didn't finish execution.",
+      'VDHostname': '',
+      'VDSerialnum': '',
+      'VDModel': '',
+      'VDVersion': ''
+    }
+    delegate_to: localhost
+    run_once: true    
+
+# Discovery Versa Director servers
+- name: '#80 DISCOVERY VERSA DIRECTOR SERVERS'
+  block:
+    - name: '# Generate "Discovery VD servers" test structure'
+      set_fact:
+        possibleVDLocalCredentials: [
+          {
+            "username": "{{ ansible_user }}",
+            "password": "{{ ansible_password }}"          
+          }        
+          
+        ]          
+    
+    - name: '#90 EXTRACT CUSTOMER SHORT-NAME'
+      set_fact:
+        shortname: "{{ (DNSEntityName.split('-') | first == 'vzvnvcih') | ternary('vzcustih', (DNSEntityName.split('-') | first)) }}"
+      delegate_to: localhost
+      run_once: true
+    
+    - name: '#100 GET VERSA DIRECTOR FROM CINFO'
+      uri:
+        url: "{{ iAutomate_DEVICE_ATTRS_BASE_URL }}inventory-search?invlvl={{ dbESP }}&shortName={{ shortname }}&deviceType=Versa%20Director"
+        method: GET
+        return_content: yes
+        validate_certs: no
+        follow_redirects: all
+        timeout: 60
+      register: getCustomerDirectorsCall
+      delegate_to: localhost
+      delegate_facts: true
+      run_once: true 
+      
+    - name: '#110 ATTACH VD IPs TO STRUCTURE'
+      set_fact:
+        discoveryVDDict: "{{ discoveryVDDict | combine ({ 'VDIPs': (getCustomerDirectorsCall['json']['devices'] | map(attribute='device') | map(attribute='mgmtIPAddress') | list) }) }}"  
+      delegate_to: localhost
+      run_once: true
+    
+    - name: '#120 GET VERSA DIRECTOR ROLE FROM CINFO'
+      uri:
+        url: "{{ iAutomate_DEVICE_ATTRS_BASE_URL }}attributes/{{ item.device.entityId }}"  
+        method: GET
+        return_content: yes
+        validate_certs: no
+        follow_redirects: all
+        timeout: 60
+      loop: "{{ getCustomerDirectorsCall['json']['devices'] }}"
+      loop_control:
+          label: "{{ item.device.entityId }}"
+      register: getCustomerDirectorsRolesCall
+      delegate_to: localhost
+      delegate_facts: true
+      run_once: true
+    
+    - name: '#130 ATTACH "MASTER" and "SLAVE" IPs TO STRUCTURE'
+      set_fact:
+        discoveryVDDict: "{{ (item['Director Role'] == 'Primary') | ternary((discoveryVDDict | combine( {'MasterVDIP': item['API IP Address'] | default(item['device']['mgmtIPAddress'])} )), (discoveryVDDict | combine( {'SlaveVDIP': item['API IP Address'] | default('')} ))) }}"  
+      loop: "{{ getCustomerDirectorsRolesCall.results | map(attribute='json') | list }}"
+      loop_control:
+        label: "{{ item['API IP Address'] }}" 
+      delegate_to: localhost
+      run_once: true 
+      register: masterSlaveOP
+      ignore_errors: True
+
+    - name: '#140 ATTACH "MASTER" and "SLAVE" IPs To STRUCTURE ON ERROR'
+      set_fact:
+        discoveryVDDict: "{{ (item['Director Role'] == 'Primary') | ternary((discoveryVDDict | combine( {'MasterVDIP': getCustomerDirectorsRolesCall.results[0].item.device['mgmtIPAddress'] } )), (discoveryVDDict | combine( {'SlaveVDIP': ''} ))) }}"  
+      loop: "{{ getCustomerDirectorsRolesCall.results | map(attribute='json') | list }}"
+      delegate_to: localhost
+      run_once: true 
+      when: masterSlaveOP is failed
+
+    - debug: var=discoveryVDDict
+    
+    - name: '#150 GET VERSA DIRECTOR LOCAL CREDENTIALS FROM CINFO'
+      uri:
+        url: "{{ iAutomate_DEVICE_ATTRS_BASE_URL }}discover-device-creds"
+        method: POST
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: "Bearer {{ vcatsAuthToken }}"
+        body_format: json
+        body: |
+          {
+            "isAdhoc": "false",
+            "requestorVzId":null,
+            "espCustomerNumber": [{{ item.customerNumber }}],
+            "devices": [
+              {
+                "entityId": {{ item.device.entityId }},
+                "entityNumber": {{ item.device.entityNumber }},
+                "credentialIds": "3",
+                "credsRequired" : "true",
+                "tacacsRequired" : "true"
+              }
+            ]
+          }
+        return_content: yes
+        validate_certs: no
+        follow_redirects: all
+        timeout: 60
+      loop: "{{ getCustomerDirectorsCall['json']['devices'] }}"
+      loop_control:
+          label: "{{ item.device.entityId }}"
+      register: getCustomerDirectorsLocalCredentialsCall
+      delegate_to: localhost
+      delegate_facts: true
+      run_once: true 
+      ignore_errors: true
+      no_log: true
+
+    #- debug: var=getCustomerDirectorsLocalCredentialsCall
+      
+    - name: '#160 RESOLVE LIST OF POSSIBLE LOCAL CREDENTIALS FOR VD'
+      set_fact:
+        possibleVDLocalCredentials: "{{ possibleVDLocalCredentials + (item[0]['credentials']['cinfo_3'] | selectattr('username', 'match', '.*dmin.*') | list) }}"
+      loop: "{{ getCustomerDirectorsLocalCredentialsCall['results'] | map(attribute='json') | map(attribute='entities') | list }}"
+      loop_control:
+        label: "{{ item[0]['entityNumber'] }}"
+      delegate_to: localhost
+      run_once: true 
+      ignore_errors: true
+    
+    - name: '#170 DISCOVERY VERSA DIRECTOR SERVERS - SUCCESS HANDLER'
+      set_fact:
+        discoveryVDDict: "{{ discoveryVDDict | combine({
+          'Status': 'OK',
+          'Message': 'VD servers (+ roles and extra credentials) found for the customer.'
+          }) }}"
+      
+  rescue:
+    - name: '#180 RESOLVE VERSA DIRECTOR SERVERS ROLES - FAIL HANDLER'
+      set_fact:
+        discoveryVDDict: "{{ discoveryVDDict | combine({
+          'Status': 'ERROR',
+          'Message': 'Unable to resolve VD servers roles.'
+          }) }}"
+        deviceDict: "{{ deviceDict | combine({
+          'Status': 'Failure',
+          'Message': 'Unable to resolve VD servers roles.'
+          }) }}"
+      when: discoveryVDDict['MasterVDIP'] == "" or discoveryVDDict['SlaveVDIP'] == ""
+      
+    - name: '# 190 DISCOVERY VERSA DIRECTOR SERVERS - FAIL HANDLER'
+      set_fact:
+        discoveryVDDict: "{{ discoveryVDDict | combine({
+          'Status': 'ERROR',
+          'Message': 'Unable to resolve any VD servers for the customer.'
+          }) }}"
+        deviceDict: "{{ deviceDict | combine({
+          'Status': 'Failure',
+          'Message': 'Unable to resolve any VD servers for the customer.'
+          }) }}"          
+      when: discoveryVDDict['VDIPs'] is undefined or discoveryVDDict['VDIPs'] | length == 0
+
+    - ansible.builtin.meta: clear_host_errors
+  
+  always:
+    - name: '#200 RESOLVE EXTRA LOCAL CREDENTIALS - WARNING HANDLER'
+      set_fact:
+        discoveryVDDict: "{{ discoveryVDDict | combine({
+          'Status': 'WARNING',
+          'Message': 'Unable to get any local credentials from CINFO.'
+          }) }}"
+      when: possibleVDLocalCredentials | length == 2 and discoveryVDDict['MasterVDIP'] != ""
+      
+    - name: '#210 APPEND "DISCOVERYVDDict" TEST STRUCTURE TO "LOGIN-CHECK" STRUCTURE'
+      set_fact:
+        loginCheckDict: "{{ loginCheckDict | combine ({ 
+          'Tests' : loginCheckDict.Tests + [discoveryVDDict] 
+          }) }}"
+
+
+# Authentication to Versa Director servers
+- name: '#220 AUTHENTICATION TO VERSA DIRECTOR SERVERS'
+  block:  
+    - name: '# Auth. tests + get appliances from master VD server'
+      uri:
+        url: "https://{{ discoveryVDDict['MasterVDIP'] }}:{{ vdServicePort }}/vnms/cloud/systems/getAllApplianceNames"
+        method: GET
+        user: "{{ item.username }}"
+        password: "{{ item.password }}"
+        headers:
+          Accept: application/json
+        return_content: yes
+        force_basic_auth: yes
+        validate_certs: no
+        follow_redirects: all
+        timeout: 60
+      register: getVDAppliancesCall
+      with_items: "{{ possibleVDLocalCredentials }}"
+      ignore_errors: yes
+      delegate_to: localhost
+      delegate_facts: true
+      run_once: true
+      no_log: true                        
+    
+    - name: "#230 RESOLVE FIRST CREDENTIALS WHICH WORKED"
+      set_fact:
+        APICredentials: "{{ (getVDAppliancesCall.results | selectattr('status', 'match', '200') | list | first).item }}"
+      delegate_to: localhost
+      run_once: true
+    
+    
+    - fail: msg="Authentication failed for {{ ansible_host }}"
+      when: APICredentials is undefined
+      
+    - name: '#240 AUTHENTICATION TO VERSA DIRECTOR SERVER - SUCCESS HANDLER'
+      set_fact:
+        authenticationVDDict: "{{ authenticationVDDict | combine({
+          'Status': 'OK',
+          'Message': 'Playbook was able to authenticate to master VD server.'
+          }) }}"   
+    
+  rescue:
+    - name: '#250 AUTHENTICATION TO VERSA DIRECTOR SERVERS - FAIL HANDLER'
+      set_fact:
+        authenticationVDDict: "{{ authenticationVDDict | combine({
+          'Status': 'ERROR',
+          'Message': 'Unable to authenticate to master VD server.'
+          }) }}"  
+        deviceDict: "{{ deviceDict | combine({
+          'Status': 'Failure',
+          'Message': 'Unable to authenticate to master VD server.'
+          }) }}" 
+        
+    - ansible.builtin.meta: clear_host_errors
+   
+  always:
+    - name: '#260 APPEND "AUTHENTICATIONVDDict" TEST STRUCTURE TO LOGINCHECKDICT" STRUCTURE'
+      set_fact:
+        loginCheckDict: "{{ loginCheckDict | combine ({ 
+          'Tests' : loginCheckDict.Tests + [authenticationVDDict] 
+          }) }}" 
+  
+  when: discoveryVDDict['Status'] == "OK" or discoveryVDDict['Status'] == "WARNING"
+    
+
+# Check if the device registered on master VD server
+- name: '#270 IF THE DEVICE REGISTERED ON MASTER VD SERVER'
+  block:
+    - name: "#280 EXTRACT LIST OF APPLIANCE ON MASTER VD"
+      set_fact:
+        listOfAppliancesOnMasterVD: "{{ (getVDAppliancesCall.results | selectattr('status', 'match', '200') | list | first)['json']['appliance-list'] | map(attribute='name') | list }}"
+      delegate_to: localhost
+      run_once: true
+
+    #- debug: var=listOfAppliancesOnMasterVD
+    
+    - name: '#290 EXTRACT UUID WITH {{DNSEntityName}}'
+      set_fact:
+        uuid: "{{ (getVDAppliancesCall.results | selectattr('status', 'match', '200') | list | first)['json']['appliance-list'] | selectattr('name', 'match', DNSEntityName) | map(attribute='uuid') | list | first }}"
+      when: DNSEntityName in listOfAppliancesOnMasterVD
+    
+    #- debug: var=uuid
+
+    ## May be TEMP for Non-PROD LAB
+    - name: '#300 EXTRACT UUID ON WITH {{DNSEntityName}} AND TRY WITH {{entityHostName}}'
+      set_fact:
+        uuid: "{{ (getVDAppliancesCall.results | selectattr('status', 'match', '200') | list | first)['json']['appliance-list'] | selectattr('name', 'match', entityHostName) | map(attribute='uuid') | list | first }}"
+      when: entityHostName in listOfAppliancesOnMasterVD
+
+    #- debug: var=uuid
+    
+    - name: '#310 CHECK IF THE DEVICE REGISTERED ON MASTER VD SERVER - SUCCESS HANDLER'
+      set_fact:
+        registeredOnVDDict: "{{ registeredOnVDDict | combine({
+          'Status': 'OK',
+          'Message': 'Device found in list of appliances on master VD server.'
+          }) }}"
+                              
+  rescue:
+    - name: '#320 CHECK IF THE DEVICE REGISTERED ON MASTER VD SERVER - FAIL HANDLER'
+      set_fact:
+        registeredOnVDDict: "{{ registeredOnVDDict | combine({
+          'Status': 'ERROR',
+          'Message': 'Device not found in list of appliances on master VD server.'
+          }) }}"
+        deviceDict: "{{ deviceDict | combine({
+          'Status': 'Failure',
+          'Message': 'Device not found in list of appliances on master VD server.'
+          }) }}"
+        
+    - ansible.builtin.meta: clear_host_errors
+    
+  always:
+    - name: '#330 APPEND "REGISTEREDONVDDict" TEST STRUCTURE TO "LOGINCHECKDICT" STRUCTURE'
+      set_fact:
+        loginCheckDict: "{{ loginCheckDict | combine ({ 
+          'Tests' : loginCheckDict.Tests + [registeredOnVDDict] 
+          }) }}" 
+  
+  when: authenticationVDDict['Status'] == "OK"
+
+
+# Gather base device facts from master VD server
+- name: '#340 GATHER BASE DEVICE FACTS FROM MASTER VD SERVER'
+  block:
+    - block:
+        - name: '#350 PING DEVICE VERSA DIRECTOR MASTER IP {{ discoveryVDDict["MasterVDIP"] }}'
+          shell:
+            cmd: "ping -c 3 {{ discoveryVDDict['MasterVDIP'] }} -W 3 > /dev/null"
+            
+        - name: '#360 PING - SUCCESS HANDLER'
+          set_fact:
+            availabilityDict: "{{ availabilityDict | combine({
+              'Status': 'OK',
+              'Message': 'Ping passed.'      
+              }) }}"    
+          
+      rescue:
+        - name: '#370 PING - FAIL HANDLER'
+          set_fact:
+            availabilityDict: "{{ availabilityDict | combine({
+              'Status': 'WARNING',
+              'Message': 'Ping failed.'      
+              }) }}"
+            deviceDict: "{{ deviceDict | combine({
+              'Status': 'WARNING',
+              'Message': 'Ping failed.'      
+              }) }}"
+        - ansible.builtin.meta: clear_host_errors
+        
+      always:
+        - name: '#380 APPEND "AVAILABILITYDICT" TEST STRUCTURE TO LIST OF TESTS'
+          set_fact:
+            loginCheckDict: "{{ loginCheckDict | combine ({ 
+              'Tests' : loginCheckDict.Tests + [availabilityDict] 
+              }) }}"
+
+    - name: '#390 GET DETAILS FOR DEVICE FROM DASHBOARD CALL'
+      uri:
+        url: "https://{{ discoveryVDDict['MasterVDIP'] }}:{{ vdServicePort }}/vnms/dashboard/applianceStatus/{{ shortname }}/{{ uuid }}"
+        method: GET
+        user: "{{ APICredentials.username }}"
+        password: "{{ APICredentials.password }}"
+        headers:
+          Accept: application/json
+        return_content: yes
+        force_basic_auth: yes
+        validate_certs: no
+        follow_redirects: all
+        timeout: 60
+      register: getDeviceDashboardDetailsCall
+    
+    - debug: var=APICredentials.username
+    - debug: var=getDeviceDashboardDetailsCall 
+    
+    - name: '#400 GATHER BASE DEVICE FACTS FROM MASTER VD SERVER - SUCCESS HANDLER'
+      set_fact:
+        gatherBaseFactsDict: "{{ gatherBaseFactsDict | combine({
+          'Status': 'OK',
+          'Message': 'Base facts for device collected.',
+          'VDHostname': getDeviceDashboardDetailsCall['json']['versanms.ApplianceStatus']['Hardware']['name'] | default(getDeviceDashboardDetailsCall['json']['versanms.ApplianceStatus']['applianceLocation']['applianceName']),
+          'VDSerialnum': getDeviceDashboardDetailsCall['json']['versanms.ApplianceStatus']['Hardware']['serialNo'],
+          'VDModel': getDeviceDashboardDetailsCall['json']['versanms.ApplianceStatus']['Hardware']['model'],
+          'VDVersion': getDeviceDashboardDetailsCall['json']['versanms.ApplianceStatus']['Hardware']['firmwareVersion'],
+          'VDPackageName': getDeviceDashboardDetailsCall['json']['versanms.ApplianceStatus']['Hardware']['packageName']
+          }) }}"
+    
+    - debug: var=gatherBaseFactsDict
+    - name: '# Update output file'
+      lineinfile:
+        path: "{{ output_file }}"
+        line: |                      
+          - Versa {{ deviceType }} is available in Versa Director. Lets Review to Versa {{ deviceType }} to ping and is able to collect facts
+      delegate_to: localhost
+
+  rescue:
+    - name: '#410 GATHER BASE DEVICE FACTS FROM MASTER VD SERVER - FAIL HANDLER'
+      set_fact:
+        gatherBaseFactsDict: "{{ gatherBaseFactsDict | combine({
+          'Status': 'ERROR',
+          'Message': 'Unable to collect base facts for device.'
+          }) }}"
+        deviceDict: "{{ deviceDict | combine({
+          'Status': 'Failure',
+          'Message': 'Unable to collect base facts for device.'
+          }) }}"
+        
+    - ansible.builtin.meta: clear_host_errors  
+  
+  always:
+    - name: '#420 APPEND "GATHERBASEFACTSDICT" TEST STRUCTURE TO "LOGINCHECKDICT" STRUCTURE'
+      set_fact:
+        loginCheckDict: "{{ loginCheckDict | combine ({ 
+          'Tests' : loginCheckDict.Tests + [gatherBaseFactsDict] 
+          }) }}" 
+  
+  when: registeredOnVDDict['Status'] == "OK"
+   
+
+## Update JSON structures 
+
+- name: '#440 FINAL PASS / FAIL VALIDATION'
+  block: 
+    - name: '#450 VD DISCOVERY, AUTHENTICATION FAILED OR DEVICE NOT REGISTERED'
+      set_fact:
+        loginCheckDict: "{{ loginCheckDict | combine({
+          'Status': 'ERROR',
+          'Message': 'Device is available, but not accessible (API).'
+          }) }}"
+      when: availabilityDict['Status'] == "OK" and gatherBaseFactsDict['Status'] != "OK"
+                  
+    - name: '#460 DEVICE IS NOT AVAILABLE, BUT IS ACCESSIBLE'
+      set_fact:
+        loginCheckDict: "{{ loginCheckDict | combine({
+          'Status': 'WARNING',
+          'Message': 'Device is not available, but is accessible (API).'
+          }) }}"
+      when: availabilityDict['Status'] == "WARNING" and
+            gatherBaseFactsDict['Status'] == "OK"
+            
+    - name: '#470 DEVICE IS NOT AVAILABLE AND NOT ACCESSIBLE'
+      set_fact:
+        loginCheckDict: "{{ loginCheckDict | combine({
+          'Status': 'WARNING',
+          'Message': 'Device is not available and accessible (API).'
+          }) }}"
+      when: availabilityDict['Status'] == "WARNING" and
+            gatherBaseFactsDict['Status'] != "OK"
+    
+    - name: '#480 FAIL'
+      fail:
+        msg: "{{ MgmtIP }} == removed from scope: {{ loginCheckDict['Message'] }}"
+      when: gatherBaseFactsDict['Status'] != "OK"
+            
+    - name: '#490 SUCCESS'
+      set_fact:
+        loginCheckDict: "{{ loginCheckDict | combine({
+          'Status': 'OK',
+          'Message': 'Device is available and accessible (API).'
+          }) }}"
+        deviceDict: "{{ deviceDict | combine({
+          'Status': 'Success',
+          'Message': 'Device is available and accessible (API).'
+          }) }}"
+      when: gatherBaseFactsDict['Status'] == "OK" and
+            availabilityDict['Status'] == "OK"
+  
+  rescue:
+    - name: '#510 UPDATE DEVICE STRUCTURE - FAIL HANDLER'
+      set_fact:
+        deviceDict: "{{ deviceDict | combine({
+          'Status': 'Failure',
+          'Message': deviceDict['Message']
+          }) }}"
+        
+    - name: '#520 FAIL'
+      fail:
+        msg: "{{ MgmtIP }} == removed from scope: {{ loginCheckDict['Message'] }}"
