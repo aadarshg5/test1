@@ -909,3 +909,94 @@ Could not apply 834bcfa... # Updating BFDTLOC-Viptela code
 
 EMEA-DSMAIN+gupaa75@WSDCVPA43KW0418 MINGW64 ~/Documents/verizon-development/iautomatenonprod (Device-Down-Master|REBASE 1/4)
 $
+=========================================================
+
+EMEA-DSMAIN+gupaa75@WSDCVPA43KW0418 MINGW64 ~/Documents/verizon-development/iautomatenonprod (main)
+$ cd ~/Documents/verizon-development/iautomatenonprod/
+
+EMEA-DSMAIN+gupaa75@WSDCVPA43KW0418 MINGW64 ~/Documents/verizon-development/iautomatenonprod (main)
+$ ls
+AP-Disconnected-Tesco/                                       Interface-Down-SharedNoc/                 Syslog-Search-SOC/
+ASTELG-VMANAGE-SITE-TEST/                                    Interface-Down-Target/                    TARGETStoreSVU/
+Alert_Basic_Triage_New/                                      Interface-Down-Tesco/                     TARGETprestagingStoreRouters/
+Aruba-OS-MACD/                                               Interface-StateChange-SharedNoc/          Target-3850-IOS-prestaging/
+BAYER-SITE-ISOLATION-TRIAGE/                                 Interface-Status-Master/                  Task-Automation/
+BFDTLOCUpDown-SharedNOC/                                     Interface-UpDown-SharedNoc/               Tesco-ACL-Update/
+BGP-Session-Down-SharedNoc/                                  Interface-UpDown-Walgreens/               Tesco-CCTV-Body-Worn-Camera-OPS/
+BGPPeerUpDown-SharedNOC/                                     IpsecTunnelDown-Versa/                    Tesco-Cisco-Switch-Add-New-VLANs/
+BGPSessionDown-Tesco/                                        Itefailover-juniper-motorola/             Tesco-Junos-OS-CCTV-migration-MACD-PILOT/
+BGP_Session_Down/                                            JBNOC-TRIAGE/                             Tesco-QoS-change-OPS/
+BackUpConfiguration/                                         JUNOS-CHG-NTP-DNS/                        Tesco-SevOne-ROI-config-to-SRX-OPS/
+Basic_Triage_Master/                                         JUNOS-CHG-NTP-DNS-OPS/                    Tesco-pingtest/
+CF_Performance_Monitoring/                                   JUNOS-NTP-DNS-CHG-OPS/                    Tesco-pingtest2/
+CHG-STD-ACL-UPDATE/                                          JUNOS-PRE-NTP-DNS-OPS/                    Tesco-srx-rules/
+CHG-STD-ACL-UPDATE-NX/                                       Juniper_DMFA_checks/                      Tesco_extend-wlan-tunnel-colleague-junos-OPS/
+CHG-STD-ACL-UPDATE-XR/                                       Junos-OS-Code-Upgrade/                    Tesco_src_rules-OPS/
+CertificateInventory-CUCM/                                   Junos-OS-Code-Upgrade-OPS/                Triage-Cisco-Devices/
+Check-CUBE-configuration/                                    Junos-OS-Code-Upgrade-PILOT/              Triage-CiscoASA-Firewall/
+CheckPoint-Triage/                                           Junos-OS-Login-check_OPS/                 Triage-F5-Loadbalancer/
+Cisco-Assign-Ports-To-VLAN/                                  Junos-OS-MACD_OPS/                        Triage-Fortigate-FW/
+Cisco-Basic-Port-Configuration/                              Junos-OS-Post-check/                      Triage-PaloAlto-Firewall/
+Cisco-Extended-ACL-Configuration/                            Junos-OS-Post-check-OPS/                  VIPTELA-SITE-ISOLATION/
+Cisco-IP-Prefix-list-update-for-route-advertisement/         Junos-OS-Pre-check/                       VIPTELA-SITE-ISOLATION-TEST/
+Cisco-LAN-Interface-Address-Change/                          Junos-OS-Pre-check-OPS/                   VOS-Pre-check-OPS/
+Cisco-Network-Statement-Update-for-BGP-Route-Advertisement/  LoadMgmtIPwithSN/                         Validate-subnet-availability/
+Cisco-SDWAN-Code-Upgrade-OPS/                                Login-check/                              Versa-Analytics-Log-Export-CPE-Automation-for-PaaS-Config/
+Cisco-Standard-ACL-Configuration/                            MemHigh-Versa/                            Versa-Analytics-Log-Export-CPE-Automation-for-PaaS-Discovery/
+Cisco-Static-Route-configuration/                            Network-Site-Discovery-Phase1-OPS/        Versa-Analytics-Log-Export-CPE-Automation-for-PaaS-Pre-check_OPS/
+Cisco-software-vulnerability-upgrade/                        Network-Site-Discovery-Phase2-OPS/        Versa-Analytics-Log-Export-CPE-Automation-for-PaaS-Rollback-OPS/
+CiscoCatalyst-CodeUpgrade-installmode/                       POL-Router-Dashboard/                     Versa-Ipsec-Tunnel-down-triage/
+CiscoI-OS-upgrade/                                           POL_Router_Personalization/               Versa-Postcheck/
+CiscoNexus-CodeUpgrade-installmode/                          PRIMK-LTE-GW/                             Versa-Postcheck-OPS/
+Configuration-Console/                                       PaloAlto-Post-check/                      Versa-Precheck/
+ControlTLOCUpDown-SharedNOC/                                 PaloAlto-Post-check-OPS/                  Versa-Precheck-OPS/
+ControlTLOCUpDown-Viptela-all/                               PaloAlto-Pre-check/                       VersaSoftwareKeyExpiring/
+Crontab_modification/                                        PaloAlto-Pre-check-OPS/                   VersaSpoke-minusAAAplusVNF/
+DBMainViptelaAlarms/                                         Penske-Device-Discovery-OPS/              VersaSpoke-plusAAA-minusVNF/
+Device-Down-ECSR-CORE/                                       PostCheckRouter/                          Versa_HA_Struck_Shared_NOC/
+Device-Down-ECSR-DORTMUND/                                   PostChkSwitch/                            Versa_IPSEC_Struck_Shared_NOC/
+Device-Down-EMS/                                             PowerAutomation/                          Viptela-APIDown/
+Device-Down-ENOC/                                            PreCheck-Router/                          Viptela-BGPRouterUpDown/
+Device-Down-IENOC/                                           PreCheck-Switch/                          Viptela-OS-Post-check/
+Device-Down-Master/                                          PreCheckRouter/                           Viptela-OS-Post-check-OPS/
+Device-Down-SAP-NOC/                                         PreChkSwitch/                             Viptela-OS-Pre-check/
+Device-Down-SMS_NOC/                                         ReloadDevice/                             Viptela-OS-Pre-check-OPS/
+Device-Down-Target/                                          ReloadOnly/                               ViptelaCertificatesExpiry/
+Device-Down-Tesco/                                           Resolve-platform__OPS/                    Vulnerability-Mgmt-SOC/
+Device-Down-UKPO/                                            RouteUpdate-cisco-ukpost/                 WAG_Versa_SDWAN_Flexvnf_Upgrade/
+Device-Down-Walgreens/                                       Run_Firewall_Commands_Modified/           WALLGREEN.PRE.STAGING/
+Device-Unstable-ECSR-CORE/                                   SCM-RollBack-Feature-Cisco/               WBA-BasicTriage/
+Device-UpDown-Shared-NOC/                                    SDWANPathUpDown-Versa-all/                WGSVUSwitchUPGRADE/
+DeviceUnstable-SharedNOC/                                    SDWANPathUpDownAVA/                       Walgreens-N5k-Prestaging/
+DeviceUpDown-Viptela-all/                                    SDWANPathUpDownV2-Versa/                  Walgreens-Switch-POE-Faulty/
+Deviceunstable-Tesco/                                        SNMP-Availability-Walgreens/              cisco_code_upgrade/
+ETMS-VersaMemHigh/                                           SNMP-Unreachable-SharedNOC/               cisco_ios_upgrade_bundle/
+FixMOTD/                                                     SOC-Precheck-Postcheck/                   cisco_ports_to_juniper/
+Fortigate-Post-Check/                                        SSC_Automation/                           device_updown_walgreens/
+Fortigate-Post-Check-OPS/                                    STMicro-Site-Isolation-Triage/            identify-expired-expiring-licenses/
+Fortigate-Pre-Check-OPS/                                     ServiceImpact-HA-SharedNOC/               ios_version_test/
+Fortigate_PreCheck/                                          Site-Isolation-Master/                    md5_hash_check/
+General_Update/                                              SiteIsolation-Generic/                    ping_it/
+Generic-Fortigate-FW-USPS/                                   SiteIsolation-moto/                       pol_wireless_personalization/
+GetVersion/                                                  Standard-HPE-Pre-check/                   prechk-IOS-service-assurance-OPS/
+Hubin3650IOSStaging/                                         Standard-HPE-Pre-check-OPS/               router_down/
+ICMP-Echo-Availability-ECSR-CORE/                            Standard-IOS-Code-Upgrade/                save_config/
+ICMP_Unreachable/                                            Standard-IOS-Code-Upgrade-OPS/            scm-show-config/
+IOS-XE-Post-check/                                           Standard-IOS-IDE-Circuit-Activation_DEA/  showlicence/
+IOS-XE-Post-check--OPS/                                      Standard-IOS-MACD-OPS/                    software-and-hardware-discovery/
+IOS-XE-Pre-check/                                            Standard-IOS-Post-check/                  sonar-project.properties
+IOS-XE-Pre-check--OPS/                                       Standard-IOS-Post-check_OPS/              steve_test_enable/
+IPSecTunnelDown-SharedNOC/                                   Standard-IOS-Pre-check/                   switch_prestaging/
+Interface-Disabled-Target/                                   Standard-IOS-Pre-check-PEGA/              target_3850_ios_upgrade/
+Interface-Disabled-Targett/                                  Standard-IOS-Pre-check-ops/               tesco-aruba-ssid-ops/
+Interface-Disabled-Walgreens/                                StoreUpDown-multi-Walgreens/              test.text
+Interface-Down-ECSR-CORE/                                    Stuck-DeviceUpDown/                       test.txt
+Interface-Down-JB/                                           Switch-Port-Capacity-Report/
+Interface-Down-SAP-NOC/                                      SwitchDisconnected-Walgreens/
+
+
+EMEA-DSMAIN+gupaa75@WSDCVPA43KW0418 MINGW64 ~/Documents/verizon-development/iautomatenonprod (main)
+$
+
+EMEA-DSMAIN+gupaa75@WSDCVPA43KW0418 MINGW64 ~/Documents/verizon-development/iautomatenonprod (main)
+$
