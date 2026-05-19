@@ -1,0 +1,102 @@
+---
+- block:
+    - name: "1010 INCLUDE INITIALIZE RUN TASKS"
+      include_tasks: initialize_run.yaml
+
+    - name: "1020 INCLUDE INPUT GATHERING TASKS"
+      include_tasks: input_gathering.yaml
+
+    - name: "1030 INCLUDE PRE-CHECKS TASKS"
+      include_tasks: pre_checks.yaml
+
+    - block:
+        - name: "1040 RUN PING CHECK TASKS"
+          include_tasks: ping.yaml
+
+        - name: "1050 RUN DEVICE SSH AND PLATFORM DETECTION TASKS"
+          include_tasks: device_ssh.yaml
+
+        - block:
+
+            - name: "1055 DISCOVER VMANAGE AND AUTHENTICATE"
+              include_tasks: vmanage_discovery.yaml
+
+            - name: "1060 RUN BFD SESSION CHECK TASKS"
+              include_tasks: bfd_check.yaml
+              when: ssh_ok | bool
+
+            - name: "1070 RUN BFD UP PATH TASKS"
+              include_tasks: bfd_up_path.yaml
+              when: ssh_ok | bool and bfd_up | bool
+
+            - name: "1080 RUN CONTROL TLOC CHECK TASKS"
+              include_tasks: control_tloc_check.yaml
+              when: ssh_ok | bool and not (bfd_up | bool)
+
+            - name: "1090 RUN INTERFACE CHECK TASKS"
+              include_tasks: interface_check.yaml
+              when: ssh_ok | bool and not (bfd_up | bool) and control_tloc_up | bool
+
+            - name: "1100 RUN REDUNDANT ROUTER CHECK TASKS"
+              include_tasks: redundant_router.yaml
+              when: ssh_ok | bool and not (bfd_up | bool) and not (tloc_local | bool)
+
+            - name: "1110 RUN SCOPE CHECK TASKS"
+              include_tasks: scope_check.yaml
+              when: ssh_ok | bool and not (bfd_up | bool) and control_tloc_up | bool
+
+            - name: "1120 RUN SINGLE PEER PATH TASKS"
+              include_tasks: single_peer_path.yaml
+              when: bfd_scope == 'single'
+
+            - name: "1130 RUN ALL PEERS PATH TASKS"
+              include_tasks: all_peers_path.yaml
+              when: bfd_scope == 'all'
+
+            - name: "1140 RUN INTERFACE REMEDIATION TASKS"
+              include_tasks: interface_remediation.yaml
+              when: interface_down | bool and tloc_local | bool
+
+            - name: "1150 RUN POST-REMEDIATION BFD CHECK TASKS"
+              include_tasks: post_remediation.yaml
+              when: remediation_attempted | bool
+
+            - name: "1160 RUN ALARM CLEARANCE TASKS"
+              include_tasks: alarm_clearance.yaml
+              when: bfd_confirmed_up | bool or closure_ready | bool
+
+          when: "'successful' in bfd_device_results.ping_test.result and 'successful' in bfd_device_results.ssh_test.result"
+
+      when: alarm_status.strip() == "Active"
+
+    - name: "1170 WRITE INCORRECT INCIDENT TYPE RESULT"
+      lineinfile:
+        path: "{{ output_file }}"
+        insertafter: 'Observations:'
+        line: |
+          Incident Type Check Results:
+            - Incident Type: {{ incidentType | default('Unknown') }}
+            - Result: Incorrect incident type. Please check the incident type in the problem summary.
+      delegate_to: localhost
+      when: "'BFDTLOCUpDown' not in incidentType"
+
+    - name: "1180 INCLUDE WRITE OUTPUT TASKS"
+      include_tasks: write_output.yaml
+
+    - name: "1190 READ OUTPUT.DAT"
+      ansible.builtin.shell: "cat {{ iAutomate_INV_WS }}/output.dat"
+      register: output_content
+      delegate_to: localhost
+
+    - set_fact:
+        response_msg: "{{ output_content.stdout | string }}"
+
+  rescue:
+    - name: "1200 READ THE CONTENT OF OUTPUT.DAT (IN RESCUE)"
+      ansible.builtin.shell: "cat {{ iAutomate_INV_WS }}/output.dat"
+      register: output_content
+      delegate_to: localhost
+
+    - set_fact:
+        status_codes: 2
+        response_msg: "{{ output_content.stdout | string }}. Engage NOC for manual troubleshooting and customer notification."
